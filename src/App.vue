@@ -6,10 +6,12 @@
       return {
         tasks
       }
+    },
+    mounted() {
+      console.log(this.tasks);
     }
   }
 </script>
-
 
 <template>
   <div id="root">
@@ -23,13 +25,16 @@
           <form>
             <input data-cy="NewTodoField" type="text" class="todoapp__new-todo" placeholder="What needs to be done?"
               value="">
-            </form>
+          </form>
         </header>
         <section class="todoapp__main" data-cy="TodoList">
-          <div v-for="task of tasks" data-cy="Todo" class="todo" :class="{completed: task.completed}">
-            <label class="todo__status-label"><input data-cy="TodoStatus" type="checkbox" class="todo__status"></label>
+          <div v-for="task, index in tasks" data-cy="Todo" class="todo" :class="{completed: task.completed}">
+            <label class="todo__status-label">
+              <input v-model="task.completed" data-cy="TodoStatus" type="checkbox" class="todo__status">
+            </label>
             <span data-cy="TodoTitle" class="todo__title">{{ task.title }}</span>
               <button
+              @click="tasks.splice(index, 1)"
                 type="button" class="todo__remove" data-cy="TodoDelete">
                 ×
               </button>
