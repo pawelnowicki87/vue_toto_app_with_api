@@ -1,14 +1,89 @@
 <script>
-  import tasks from './todos'
+  import StatusFilter from './components/StatusFilter.vue'
+  import TodoItem from './components/TodoItem.vue';
+import { clearCompletedTasks, createTask, deleteTask, getTasks } from './http-client';
 
   export default {
+    components: {
+      StatusFilter,
+      TodoItem
+    },
     data() {
+      // const data = localStorage.getItem('tasks');
+      // const tasks = data !== null ? JSON.parse(data) : [];
+
       return {
-        tasks
+        tasks: [],
+        title: '',
+        activeFilterName: 'all'
       }
     },
     mounted() {
-      console.log(this.tasks);
+      getTasks().then(data => {
+        this.tasks = data;
+      })
+    },
+    watch: {
+
+      tasks: {
+        deep: true,
+        handler() {
+          localStorage.setItem('tasks', JSON.stringify(this.tasks));
+        }
+      }
+    },
+    computed: {
+      remaningTasks() {
+        return this.tasks.filter(task => !task.completed);
+      },
+      completedTasks() {
+        return this.tasks.filter(task => task.completed)
+      },
+      visibleTasks() {
+        switch(this.activeFilterName) {
+          case 'active':
+            return this.remaningTasks;
+          case 'completed':
+            return this.completedTasks;
+          case 'all':
+            return this.tasks;
+        }
+      }
+    },
+    methods: {
+      handleSubmit() {
+        if (this.title.trim() === '') {
+          return;
+        }
+
+        createTask(this.title.trim()).then(data => {
+          this.tasks.push(data);
+          this.title = '';
+        })
+
+
+      },
+      removeTask({ id }) {
+        deleteTask(id).then(() => {
+          const index = this.tasks.findIndex(task => task.id === id)
+
+          if (index === -1) {
+            return
+        }
+        this.tasks.splice(index, 1)
+        })
+        
+      },
+      clearCompleted() {
+      clearCompletedTasks()
+        .then(() => {
+          // Po usunięciu zakończonych zadań, odświeżamy listę
+          this.tasks = this.tasks.filter(task => !task.completed);
+        })
+        .catch(error => {
+          this.errorMessage = 'Failed to clear completed tasks: ' + error.message;
+        });
+      }
     }
   }
 </script>
@@ -22,36 +97,23 @@
           <button type="button" class="todoapp__toggle-all"
             data-cy="ToggleAllButton">
           </button>
-          <form>
-            <input data-cy="NewTodoField" type="text" class="todoapp__new-todo" placeholder="What needs to be done?"
+          <form @submit.prevent="handleSubmit">
+            <input v-model="title" data-cy="NewTodoField" type="text" class="todoapp__new-todo" placeholder="What needs to be done?"
               value="">
           </form>
         </header>
         <section class="todoapp__main" data-cy="TodoList">
-          <div v-for="task, index in tasks" data-cy="Todo" class="todo" :class="{completed: task.completed}">
-            <label class="todo__status-label">
-              <input v-model="task.completed" data-cy="TodoStatus" type="checkbox" class="todo__status">
-            </label>
-            <span data-cy="TodoTitle" class="todo__title">{{ task.title }}</span>
-              <button
-              @click="tasks.splice(index, 1)"
-                type="button" class="todo__remove" data-cy="TodoDelete">
-                ×
-              </button>
-            <div data-cy="TodoLoader" class="modal overlay">
-              <div class="modal-background has-background-white-ter"></div>
-              <div class="loader"></div>
-            </div>
-          </div>
+          <TransitionGroup tag="div" name="list">
+            <TodoItem v-for="task in visibleTasks" :key="task.id" :task="task " @remove="removeTask"/>
+          </TransitionGroup>
+
         </section>
-        <footer class="todoapp__footer" data-cy="Footer"><span class="todo-count" data-cy="TodosCounter">2 items
+        <footer class="todoapp__footer" data-cy="Footer"><span class="todo-count" data-cy="TodosCounter">{{ tasks.filter(task => !task.completed).length }} items
             left</span>
-          <nav class="filter" data-cy="Filter">
-            <a href="#/" class="filter__link selected" data-cy="FilterLinkAll">All</a>
-            <a href="#/active" class="filter__link" data-cy="FilterLinkActive">Active</a>
-            <a href="#/completed" class="filter__link" data-cy="FilterLinkCompleted">Completed</a>
-          </nav>
-          <button type="button" class="todoapp__clear-completed"data-cy="ClearCompletedButton">
+          
+          <StatusFilter v-model="activeFilterName"/>
+
+          <button @click="clearCompleted" type="button" class="todoapp__clear-completed"data-cy="ClearCompletedButton">
             Clear completed
           </button>
         </footer>
@@ -64,3 +126,17 @@
     </div>
   </div>
 </template>
+
+<style>
+  .list-enter-active,
+  .list-leave-active {
+    transition: all 0.5s ease;
+    max-height: 60px;
+  }
+  .list-enter-from,
+  .list-leave-to {
+    opacity: 0;
+    max-height: 0;
+    transform: scaleY(0);
+  }
+</style>
